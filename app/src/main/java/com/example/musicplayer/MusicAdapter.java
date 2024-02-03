@@ -12,11 +12,14 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder> {
 
     private final List<MusicList> list;
     private final Context context;
+    private int playingPosition = 0;
 
     public MusicAdapter(List<MusicList> list, Context context) {
         this.list = list;
@@ -30,15 +33,33 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
         return new MyViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.music_adapter_layout, null));
     }
 
+    @SuppressLint("RecyclerView")
     @Override
     public void onBindViewHolder(@NonNull MusicAdapter.MyViewHolder holder, int position) {
         MusicList list2= list.get(position);
 
         if (list2.isPlaying()) {
+            playingPosition = position;
             holder.rootLayout.setBackgroundResource(R.drawable.round_back_blue_10);
         } else {
             holder.rootLayout.setBackgroundResource(R.drawable.round_back_10);
         }
+
+        String generateDuration = String.format(Locale.getDefault(), "%02d:%02d",
+                TimeUnit.MILLISECONDS.toMinutes(Long.parseLong(list2.getDuration())),
+                TimeUnit.MILLISECONDS.toSeconds(Long.parseLong(list2.getDuration())) -
+                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(Long.parseLong(list2.getDuration()))));
+        holder.title.setText(list2.getTitle());
+        holder.artist.setText(list2.getArtist());
+        holder.musicDuration.setText(generateDuration);
+        holder.rootLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                list.get(playingPosition).setPlaying(false);
+                list2.setPlaying(true);
+                notifyDataSetChanged();
+            }
+        });
     }
 
     @Override
@@ -51,13 +72,14 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
         private final RelativeLayout rootLayout;
         private final TextView title;
         private final TextView artist;
+        private final TextView musicDuration;
         public MyViewHolder(@NonNull View itemView) {
             super(itemView);
 
             rootLayout = itemView.findViewById(R.id.rootLayout);
             title = itemView.findViewById(R.id.musicTitle);
             artist = itemView.findViewById(R.id.musicArtist);
-
+            musicDuration = itemView.findViewById(R.id.musicDuration);
 
         }
     }
