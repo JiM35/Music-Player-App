@@ -13,22 +13,38 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SongChangeListener {
 
     private final List<MusicList> musicLists = new ArrayList<>();
     private RecyclerView musicRecyclerView;
+    private MediaPlayer mediaPlayer;
+    private TextView startTime, endTime;
+    private boolean isPlaying = false;
+    private SeekBar playerSeekBar;
+    private ImageView playPauseImg;
+    private Timer timer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,12 +62,18 @@ public class MainActivity extends AppCompatActivity {
         final LinearLayout menuBtn = findViewById(R.id.menuBtn);
         musicRecyclerView = findViewById(R.id.musicRecyclerView);
         final CardView playPauseCard = findViewById(R.id.playPauseCard);
-        final ImageView playPauseImg = findViewById(R.id.playPauseImg);
+        playPauseImg = findViewById(R.id.playPauseImg);
         final ImageView nextBtn = findViewById(R.id.nextBtn);
         final ImageView prevBtn = findViewById(R.id.previousBtn);
+        playerSeekBar = findViewById(R.id.playerSeekBar);
+
+        startTime = findViewById(R.id.startTime);
+        endTime = findViewById(R.id.endTime);
 
         musicRecyclerView.setHasFixedSize(true);
         musicRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        mediaPlayer = new MediaPlayer();
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
             getMusicFiles();
@@ -62,6 +84,43 @@ public class MainActivity extends AppCompatActivity {
                 getMusicFiles();
             }
         }
+
+        playPauseCard.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (isPlaying) {
+                    isPlaying = false;
+                    mediaPlayer.pause();
+                    playPauseImg.setImageResource(R.drawable.play_icon);
+                } else {
+                    isPlaying = true;
+                    mediaPlayer.start();
+                    playPauseImg.setImageResource(R.drawable.pause_btn);
+                }
+            }
+        });
+        playerSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    if (isPlaying) {
+                        mediaPlayer.seekTo(progress);
+                    } else {
+                        mediaPlayer.seekTo(0);
+                    }
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
     }
 
     @SuppressLint("Range")
@@ -93,6 +152,7 @@ public class MainActivity extends AppCompatActivity {
 
             musicRecyclerView.setAdapter(new MusicAdapter(musicLists, MainActivity.this));
         }
+        cursor.close();
     }
 
     @Override
@@ -114,5 +174,76 @@ public class MainActivity extends AppCompatActivity {
             int options = View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
             decodeView.setSystemUiVisibility(options);
         }
+    }
+
+    @Override
+    public void onChanged(int position) {
+        if (mediaPlayer.isPlaying()) {
+            mediaPlayer.pause();
+            mediaPlayer.reset();
+        }
+        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mediaPlayer.setDataSource(MainActivity.this, musicLists.get(position).getMusicFile());
+                    mediaPlayer.prepare();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Toast.makeText(MainActivity.this, "Unable to play track", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }).start();
+        mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+            @Override
+            public void onPrepared(MediaPlayer mediaPlayer) {
+                final int getTotalDuration = mediaPlayer.getDuration();
+
+                String generateDuration = String.format(Locale.getDefault(), "%02d:%02d",
+                        TimeUnit.MILLISECONDS.toMinutes(getTotalDuration),
+                        TimeUnit.MILLISECONDS.toSeconds(getTotalDuration) -
+                                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(getTotalDuration)));
+
+                endTime.setText(generateDuration);
+                isPlaying = true;
+                mediaPlayer.start();
+                playerSeekBar.setMax(getTotalDuration);
+                playPauseImg.setImageResource(R.drawable.pause_btn);
+            }
+        });
+        timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        final int getCurrentDuration = mediaPlayer.getCurrentPosition();
+
+                        String generateDuration = String.format(Locale.getDefault(), "%02d:%02d",
+                                TimeUnit.MILLISECONDS.toMinutes(getCurrentDuration),
+                                TimeUnit.MILLISECONDS.toSeconds(getCurrentDuration) -
+                                        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(getCurrentDuration)));
+                        playerSeekBar.setProgress(getCurrentDuration);
+                        startTime.setText(generateDuration);
+                    }
+                });
+            }
+        }, 1000, 1000);
+        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mediaPlayer) {
+                mediaPlayer.reset();
+
+                timer.purge();
+                timer.cancel();
+
+                isPlaying = false;
+                playPauseImg.setImageResource(R.drawable.play_icon);
+                playerSeekBar.setProgress(0);
+            }
+        });
     }
 }

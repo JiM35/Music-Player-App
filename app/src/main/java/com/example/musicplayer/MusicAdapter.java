@@ -20,10 +20,12 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
     private final List<MusicList> list;
     private final Context context;
     private int playingPosition = 0;
+    private final SongChangeListener songChangeListener;
 
     public MusicAdapter(List<MusicList> list, Context context) {
         this.list = list;
         this.context = context;
+        this.songChangeListener = ((SongChangeListener) context);
     }
 
     @SuppressLint("InflateParams")
@@ -57,6 +59,8 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
             public void onClick(View view) {
                 list.get(playingPosition).setPlaying(false);
                 list2.setPlaying(true);
+                songChangeListener.onChanged(position);
+
                 notifyDataSetChanged();
             }
         });
