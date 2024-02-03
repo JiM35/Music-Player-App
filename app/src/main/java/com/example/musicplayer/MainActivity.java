@@ -45,6 +45,8 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
     private SeekBar playerSeekBar;
     private ImageView playPauseImg;
     private Timer timer;
+    private int currentSongListPosition = 0;
+    private MusicAdapter musicAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +86,46 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
                 getMusicFiles();
             }
         }
+
+        nextBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int nextSongListPosition = currentSongListPosition + 1;
+                if (nextSongListPosition >= musicLists.size()) {
+                    nextSongListPosition = 0;
+                } else {
+
+                }
+                musicLists.get(currentSongListPosition).setPlaying(false);
+                musicLists.get(nextSongListPosition).setPlaying(true);
+
+                musicAdapter.updateList(musicLists);
+
+                musicRecyclerView.scrollToPosition(nextSongListPosition);
+
+                onChanged(nextSongListPosition);
+            }
+        });
+
+        prevBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int prevSongListPosition = currentSongListPosition - 1;
+                if (prevSongListPosition < 0) {
+                    prevSongListPosition = musicLists.size() - 1;  // Play last song
+                } else {
+
+                }
+                musicLists.get(currentSongListPosition).setPlaying(false);
+                musicLists.get(prevSongListPosition).setPlaying(true);
+
+                musicAdapter.updateList(musicLists);
+
+                musicRecyclerView.scrollToPosition(prevSongListPosition);
+
+                onChanged(prevSongListPosition);
+            }
+        });
 
         playPauseCard.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -149,8 +191,8 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
                 final MusicList musicList = new MusicList(getMusicFileName, getArtistName, getDuration, false, musicFileUri);
                 musicLists.add(musicList);
             }
-
-            musicRecyclerView.setAdapter(new MusicAdapter(musicLists, MainActivity.this));
+            musicAdapter = new MusicAdapter(musicLists, MainActivity.this);
+            musicRecyclerView.setAdapter(musicAdapter);
         }
         cursor.close();
     }
@@ -178,6 +220,7 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
 
     @Override
     public void onChanged(int position) {
+        currentSongListPosition = position;
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
             mediaPlayer.reset();
